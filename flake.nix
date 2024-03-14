@@ -35,7 +35,6 @@
             src = ./.;
             cargoLock.lockFile = ./Cargo.lock;
 
-
             preConfigure = ''
               echo 'pub const VERSION: &str = "${version}";' > crates/utils/src/version.rs
             '';
@@ -45,6 +44,7 @@
             nativeBuildInputs = [ pkg-config openssl.dev openssl rustfmt protobuf ];
             
             # Explicitly setting OpenSSL lib and include directories
+            RUST_SRC_PATH = "${pkgs.rust.packages.stable.rustPlatform.rustLibSrc}";
             OPENSSL_LIB_DIR = "${lib.getLib openssl.dev}/lib";
             OPENSSL_INCLUDE_DIR = "${openssl.dev}/include";
             OPENSSL_DIR = "${openssl.dev.out}";
@@ -67,8 +67,10 @@
           packages = [ rustToolchain cargo-deny cargo-edit cargo-watch rust-analyzer ];
 
           # Dev Environment variables
+          RUST_SRC_PATH = "${pkgs.rust.packages.stable.rustPlatform.rustLibSrc}";
           RUST_BACKTRACE = "1";
-          OPENSSL_LIB_DIR = "${lib.getLib openssl.dev}/lib"; # Note: This is directly accessible
+          # OPENSSL_LIB_DIR = "${lib.getLib openssl.dev}"; # Note: This is directly accessible
+          OPENSSL_LIB_DIR = "/nix/store/xpz5n8nd9minrr31yw2d63xwg0941xb7-openssl-3.0.13-dev/lib";
           OPENSSL_INCLUDE_DIR = "${openssl.dev}/include";
           OPENSSL_DIR = "${openssl.dev.out}";
           PROTOC = "${pkgs.protobuf}/bin/protoc";
@@ -78,7 +80,8 @@
           TARGET = "x86_64-unknown-linux-gnu";
 
           shellHook = ''
-            export OPENSSL_LIB_DIR="${lib.getLib openssl.dev}/lib"
+            # export OPENSSL_LIB_DIR="${lib.getLib openssl.dev}"
+            export OPENSSL_LIB_DIR="/nix/store/xpz5n8nd9minrr31yw2d63xwg0941xb7-openssl-3.0.13-dev/lib"
             export OPENSSL_INCLUDE_DIR="${openssl.dev}/include"
             export OPENSSL_DIR="${openssl.dev}/out"
             export PROTOC="${pkgs.protobuf}/bin/protoc"
