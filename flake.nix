@@ -20,11 +20,17 @@
             rustToolchain = prev.rust-bin.fromRustupToolchainFile ./rust-toolchain.toml;
           })
         ];
-        lib = pkgs.lib;
-        cargoToml = builtins.fromTOML (builtins.readFile ./Cargo.toml);
-        version = cargoToml.workspace.package.version;
         pkgs = import nixpkgs {
           inherit system overlays;
+        };
+        lib = pkgs.lib;
+        cargoToml = builtins.fromTOML (builtins.readFile ./Cargo.toml);
+        version = cargoToml.workspace.package.version;        
+        
+        # A *very* necessary OpenSSL wrapper
+        openssl_wr = pkgs.symlinkJoin {
+          name = "openssl-dev-out";
+          paths = with pkgs; [ openssl.dev openssl.out ];
         };
       in
       with pkgs;
@@ -45,59 +51,55 @@
             
             # Explicitly setting OpenSSL lib and include directories
             RUST_SRC_PATH = "${pkgs.rust.packages.stable.rustPlatform.rustLibSrc}";
-            OPENSSL_LIB_DIR = "${lib.getLib openssl.dev}/lib";
-            OPENSSL_INCLUDE_DIR = "${openssl.dev}/include";
-            OPENSSL_DIR = "${openssl.dev.out}";
+            # Set OpenSSL environment variables
+            OPENSSL_LIB_DIR = "${openssl_wr}/lib";
+            OPENSSL_INCLUDE_DIR = "${openssl_wr}/include";
+            OPENSSL_DIR = openssl_wr; # No .out needed because it's a symlinkJoin
             PROTOC = "${pkgs.protobuf}/bin/protoc";
             PROTOC_INCLUDE = "${pkgs.protobuf}/include";
-            /* current issue with pkg config
-            ``` OpenSSL libdir at `["/nix/store/xpz5n8nd9minrr31yw2d63xwg0941xb7-openssl-3.0.13-dev/lib"]` 
-              does not contain the required files to either statically or dynamically link OpenSSL ```
-              referenced here https://discourse.nixos.org/t/rust-openssl-woes/12340/2 
-            */
-            PKG_CONFIG_PATH = "${pkgs.openssl.dev}/lib/pkgconfig";
+            PKG_CONFIG_PATH = "${openssl_wr}/lib/pkgconfig:${pkgs.pkg-config}/lib/pkgconfig";
           };
         # Devshell (to be broken out to separate shell.nix later)      
         devShells.default = mkShell {
           name = "lemmy-shell";
           buildInputs = [ openssl openssl.dev postgresql libiconv protobuf pkg-config ];
 
-          nativeBuildInputs = [ rustToolchain pkg-config openssl openssl.dev rustfmt protobuf ];
+          nativeBuildInputs = [ rustToolchain pkg-config rustfmt protobuf ];
 
           packages = [ rustToolchain cargo-deny cargo-edit cargo-watch rust-analyzer ];
 
           # Dev Environment variables
           RUST_SRC_PATH = "${pkgs.rust.packages.stable.rustPlatform.rustLibSrc}";
           RUST_BACKTRACE = "1";
-          # OPENSSL_LIB_DIR = "${lib.getLib openssl.dev}"; # Note: This is directly accessible
-          OPENSSL_LIB_DIR = "/nix/store/xpz5n8nd9minrr31yw2d63xwg0941xb7-openssl-3.0.13-dev/lib";
-          OPENSSL_INCLUDE_DIR = "${openssl.dev}/include";
-          OPENSSL_DIR = "${openssl.dev.out}";
+          # Dev Environment variables
+          OPENSSL_LIB_DIR = "${openssl_wr}/lib";
+          OPENSSL_INCLUDE_DIR = "${openssl_wr}/include";
+          OPENSSL_DIR = openssl_wr;
           PROTOC = "${pkgs.protobuf}/bin/protoc";
           PROTOC_INCLUDE = "${pkgs.protobuf}/include";
-          PKG_CONFIG_PATH = "${pkgs.openssl.dev}/lib/pkgconfig";
-          HOST = "x86_64-unknown-linux-gnu";
-          TARGET = "x86_64-unknown-linux-gnu";
+          PKG_CONFIG_PATH = "${openssl_wr}/lib/pkgconfig:${pkgs.pkg-config}/lib/pkgconfig";
 
-          shellHook = ''
-            # export OPENSSL_LIB_DIR="${lib.getLib openssl.dev}"
-            export OPENSSL_LIB_DIR="/nix/store/xpz5n8nd9minrr31yw2d63xwg0941xb7-openssl-3.0.13-dev/lib"
-            export OPENSSL_INCLUDE_DIR="${openssl.dev}/include"
-            export OPENSSL_DIR="${openssl.dev}/out"
-            export PROTOC="${pkgs.protobuf}/bin/protoc"
-            export PROTOC_INCLUDE="${pkgs.protobuf}/include"
+          # HOST = "x86_64-unknown-linux-gnu";
+          # TARGET = "x86_64-unknown-linux-gnu";
 
-            export RUST_BACKTRACE=1
+          # shellHook = ''
+          #   export OPENSSL_LIB_DIR="${lib.getLib openssl.dev}"
+          #   export OPENSSL_INCLUDE_DIR="${openssl.dev}/include"
+          #   export OPENSSL_DIR="${openssl.dev}/out"
+          #   export PROTOC="${pkgs.protobuf}/bin/protoc"
+          #   export PROTOC_INCLUDE="${pkgs.protobuf}/include"
 
-            echo $OPENSSL_LIB_DIR 
-            echo $OPENSSL_INCLUDE_DIR 
-            echo $OPENSSL_DIR 
-            echo $PROTOC 
-            echo $PROTOC_INCLUDE 
-            echo $PKG_CONFIG_PATH
-            echo $HOST
-            echo $TARGET
-          '';
+          #   export RUST_BACKTRACE=1
+
+          #   echo $OPENSSL_LIB_DIR 
+          #   echo $OPENSSL_INCLUDE_DIR 
+          #   echo $OPENSSL_DIR 
+          #   echo $PROTOC 
+          #   echo $PROTOC_INCLUDE 
+          #   echo $PKG_CONFIG_PATH
+          #   echo $HOST
+          #   echo $TARGET
+          # '';
         };
       }
     );
