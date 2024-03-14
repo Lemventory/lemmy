@@ -6,10 +6,6 @@
       url = "github:oxalica/rust-overlay";
       inputs.nixpkgs.follows = "nixpkgs";
     };
-    lemmy-ui = {
-      url = "git+https://github.com/LemInventory/lemmy-ui?submodules=1";
-      # Make sure to handle this appropriately as it's not a flake.
-    };
   };
   outputs = { self, nixpkgs, rust-overlay, flake-utils, ... }:  
     flake-utils.lib.eachDefaultSystem (system:
@@ -25,13 +21,36 @@
         };
         lib = pkgs.lib;
         cargoToml = builtins.fromTOML (builtins.readFile ./Cargo.toml);
-        version = cargoToml.workspace.package.version;        
-        
+        version = cargoToml.workspace.package.version;  
+
+        versionPatch = pkgs.writeText "version-patch.patch" ''
+          diff --git a/crates/utils/src/version.rs b/crates/utils/src/version.rs
+          new file mode 100644
+          index 0000000..e69de29
+          --- /dev/null
+          +++ b/crates/utils/src/version.rs
+          @@ -0,0 +1 @@
+          +pub const VERSION: &str = "${version}";
+        '';
+
         # A *very* necessary OpenSSL wrapper
         openssl_wr = pkgs.symlinkJoin {
           name = "openssl-dev-out";
           paths = with pkgs; [ openssl.dev openssl.out ];
         };
+                # attempting to use lemmy-ui 
+        # combinedSrc = pkgs.symlinkJoin {
+        #   name = "lemmy-ui";
+        #   paths = [
+        #     ./.
+        #     (pkgs.fetchgit {
+        #       url = "https://github.com/LemmyNet/lemmy-ui";
+        #       rev = "9a5f9dd18a0e8e28e222f95e1c8131dbd64af131";
+        #       sha256 = "4DsLg0je6irgf2X6hyQwotZB4L17yuOTe7l4WDT1ieg=";
+        #       fetchSubmodules = true;
+        #     })
+        #   ];
+        # };
       in
       with pkgs;
       {
@@ -41,9 +60,9 @@
             src = ./.;
             cargoLock.lockFile = ./Cargo.lock;
 
-            preConfigure = ''
-              echo 'pub const VERSION: &str = "${version}";' > crates/utils/src/version.rs
-            '';
+            # preConfigure = ''
+            #   echo 'pub const VERSION: &str = "${version}";' > crates/utils/src/version.rs
+            # '';
 
             buildInputs = [ postgresql pkg-config openssl.dev openssl libiconv protobuf ];
 
@@ -79,7 +98,12 @@
           PROTOC_INCLUDE = "${pkgs.protobuf}/include";
           PKG_CONFIG_PATH = "${openssl_wr}/lib/pkgconfig:${pkgs.pkg-config}/lib/pkgconfig";
 
+          # Environment variable to connect to the database
+          LEMMY_DATABASE_URL = "postgres://lemmy:password@localhost:5432/lemmy";
+
           shellHook = ''
+            echo "LEMMY_DATABASE_URL is set to $LEMMY_DATABASE_URL";
+            # Any other setup steps can be added here
             nix eval --raw .
             echo 
             echo "evaluated successfully"
