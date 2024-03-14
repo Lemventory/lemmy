@@ -16,7 +16,10 @@ use activitypub_federation::{
   traits::Object,
 };
 use chrono::{DateTime, Utc};
-use lemmy_api_common::{context::LemmyContext, utils::local_site_opt_to_slur_regex};
+use lemmy_api_common::{
+  context::LemmyContext,
+  utils::{is_mod_or_admin, local_site_opt_to_slur_regex, process_markdown},
+};
 use lemmy_db_schema::{
   source::{
     comment::{Comment, CommentInsertForm, CommentUpdateForm},
@@ -29,7 +32,7 @@ use lemmy_db_schema::{
 };
 use lemmy_utils::{
   error::{LemmyError, LemmyErrorType},
-  utils::{markdown::markdown_to_html, slurs::remove_slurs},
+  utils::markdown::markdown_to_html,
 };
 use std::ops::Deref;
 use url::Url;
@@ -139,7 +142,11 @@ impl Object for ApubComment {
     verify_is_remote_object(note.id.inner(), context.settings())?;
     verify_person_in_community(&note.attributed_to, &community, context).await?;
     let (post, _) = note.get_parents(context).await?;
-    if post.locked {
+    let creator = note.attributed_to.dereference(context).await?;
+    let is_mod_or_admin = is_mod_or_admin(&mut context.pool(), &creator, community.id)
+      .await
+      .is_ok();
+    if post.locked && !is_mod_or_admin {
       Err(LemmyErrorType::PostIsLocked)?
     } else {
       Ok(())
@@ -158,7 +165,7 @@ impl Object for ApubComment {
 
     let local_site = LocalSite::read(&mut context.pool()).await.ok();
     let slur_regex = &local_site_opt_to_slur_regex(&local_site);
-    let content = remove_slurs(&content, slur_regex);
+    let content = process_markdown(&content, slur_regex, context).await?;
     let language_id =
       LanguageTag::to_language_id_single(note.language, &mut context.pool()).await?;
 
@@ -190,7 +197,6 @@ pub(crate) mod tests {
       instance::ApubSite,
       person::{tests::parse_lemmy_person, ApubPerson},
       post::ApubPost,
-      tests::init_context,
     },
     protocol::tests::file_to_json_object,
   };
@@ -230,7 +236,7 @@ pub(crate) mod tests {
   #[tokio::test]
   #[serial]
   pub(crate) async fn test_parse_lemmy_comment() -> LemmyResult<()> {
-    let context = init_context().await?;
+    let context = LemmyContext::init_test_context().await;
     let url = Url::parse("https://enterprise.lemmy.ml/comment/38741")?;
     let data = prepare_comment_test(&url, &context).await?;
 
@@ -255,7 +261,7 @@ pub(crate) mod tests {
   #[tokio::test]
   #[serial]
   async fn test_parse_pleroma_comment() -> LemmyResult<()> {
-    let context = init_context().await?;
+    let context = LemmyContext::init_test_context().await;
     let url = Url::parse("https://enterprise.lemmy.ml/comment/38741")?;
     let data = prepare_comment_test(&url, &context).await?;
 

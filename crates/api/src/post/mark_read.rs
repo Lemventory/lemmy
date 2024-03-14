@@ -11,14 +11,7 @@ pub async fn mark_post_as_read(
   context: Data<LemmyContext>,
   local_user_view: LocalUserView,
 ) -> Result<Json<SuccessResponse>, LemmyError> {
-  let mut post_ids = HashSet::new();
-  if let Some(post_ids_) = &data.post_ids {
-    post_ids.extend(post_ids_.iter().cloned());
-  }
-
-  if let Some(post_id) = data.post_id {
-    post_ids.insert(post_id);
-  }
+  let post_ids = HashSet::from_iter(data.post_ids.clone());
 
   if post_ids.len() > MAX_API_PARAM_ELEMENTS {
     Err(LemmyErrorType::TooManyItems)?;

@@ -11,6 +11,7 @@ use lemmy_db_schema::{
     local_site::LocalSite,
     local_site_rate_limit::LocalSiteRateLimit,
     local_user::LocalUser,
+    local_user_vote_display_mode::LocalUserVoteDisplayMode,
     person::Person,
     post::Post,
     post_report::PostReport,
@@ -41,6 +42,11 @@ pub struct CommentReportView {
   pub comment_creator: Person,
   pub counts: CommentAggregates,
   pub creator_banned_from_community: bool,
+  pub creator_is_moderator: bool,
+  pub creator_is_admin: bool,
+  pub creator_blocked: bool,
+  pub subscribed: SubscribedType,
+  pub saved: bool,
   pub my_vote: Option<i16>,
   pub resolver: Option<Person>,
 }
@@ -73,6 +79,7 @@ pub struct CommentView {
 /// A local user view.
 pub struct LocalUserView {
   pub local_user: LocalUser,
+  pub local_user_vote_display_mode: LocalUserVoteDisplayMode,
   pub person: Person,
   pub counts: PersonAggregates,
 }
@@ -90,7 +97,15 @@ pub struct PostReportView {
   pub creator: Person,
   pub post_creator: Person,
   pub creator_banned_from_community: bool,
+  pub creator_is_moderator: bool,
+  pub creator_is_admin: bool,
+  pub subscribed: SubscribedType,
+  pub saved: bool,
+  pub read: bool,
+  pub hidden: bool,
+  pub creator_blocked: bool,
   pub my_vote: Option<i16>,
+  pub unread_comments: i64,
   pub counts: PostAggregates,
   pub resolver: Option<Person>,
 }
@@ -98,10 +113,10 @@ pub struct PostReportView {
 /// currently this is just a wrapper around post id, but should be seen as opaque from the client's perspective
 /// stringified since we might want to use arbitrary info later, with a P prepended to prevent ossification
 /// (api users love to make assumptions (e.g. parse stuff that looks like numbers as numbers) about apis that aren't part of the spec
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "full", derive(ts_rs::TS))]
 #[cfg_attr(feature = "full", ts(export))]
-pub struct PaginationCursor(pub(crate) String);
+pub struct PaginationCursor(pub String);
 
 #[skip_serializing_none]
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
@@ -120,6 +135,7 @@ pub struct PostView {
   pub subscribed: SubscribedType,
   pub saved: bool,
   pub read: bool,
+  pub hidden: bool,
   pub creator_blocked: bool,
   pub my_vote: Option<i16>,
   pub unread_comments: i64,

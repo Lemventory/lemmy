@@ -49,6 +49,7 @@ use lemmy_api::{
   post::{
     feature::feature_post,
     get_link_metadata::get_link_metadata,
+    hide::hide_post,
     like::like_post,
     list_post_likes::list_post_likes,
     lock::lock_post,
@@ -130,11 +131,13 @@ use lemmy_apub::api::{
   search::search,
   user_settings_backup::{export_settings, import_settings},
 };
+use lemmy_routes::images::image_proxy;
 use lemmy_utils::rate_limit::RateLimitCell;
 
 pub fn config(cfg: &mut web::ServiceConfig, rate_limit: &RateLimitCell) {
   cfg.service(
     web::scope("/api/v3")
+      .route("/image_proxy", web::get().to(image_proxy))
       // Site
       .service(
         web::scope("/site")
@@ -204,6 +207,7 @@ pub fn config(cfg: &mut web::ServiceConfig, rate_limit: &RateLimitCell) {
           .route("/delete", web::post().to(delete_post))
           .route("/remove", web::post().to(remove_post))
           .route("/mark_as_read", web::post().to(mark_post_as_read))
+          .route("/hide", web::post().to(hide_post))
           .route("/lock", web::post().to(lock_post))
           .route("/feature", web::post().to(feature_post))
           .route("/list", web::get().to(list_posts))

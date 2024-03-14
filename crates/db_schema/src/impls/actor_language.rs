@@ -96,16 +96,18 @@ impl LocalUserLanguage {
             .execute(conn)
             .await?;
 
-          for l in lang_ids {
-            let form = LocalUserLanguageForm {
+          let forms = lang_ids
+            .into_iter()
+            .map(|l| LocalUserLanguageForm {
               local_user_id: for_local_user_id,
               language_id: l,
-            };
-            insert_into(local_user_language)
-              .values(form)
-              .get_result::<Self>(conn)
-              .await?;
-          }
+            })
+            .collect::<Vec<_>>();
+
+          insert_into(local_user_language)
+            .values(forms)
+            .execute(conn)
+            .await?;
           Ok(())
         }) as _
       })
@@ -164,16 +166,18 @@ impl SiteLanguage {
             .execute(conn)
             .await?;
 
-          for l in lang_ids {
-            let form = SiteLanguageForm {
+          let forms = lang_ids
+            .into_iter()
+            .map(|l| SiteLanguageForm {
               site_id: for_site_id,
               language_id: l,
-            };
-            insert_into(site_language)
-              .values(form)
-              .get_result::<Self>(conn)
-              .await?;
-          }
+            })
+            .collect::<Vec<_>>();
+
+          insert_into(site_language)
+            .values(forms)
+            .get_result::<Self>(conn)
+            .await?;
 
           CommunityLanguage::limit_languages(conn, instance_id).await?;
 
@@ -302,9 +306,9 @@ impl CommunityLanguage {
             // tracing::warn!("unique error: {_info:#?}");
             // _info.constraint_name() should be = "community_language_community_id_language_id_key"
             return Ok(());
-          } else {
-            insert_res?;
           }
+          insert_res?;
+
           Ok(())
         }) as _
       })
@@ -387,27 +391,13 @@ mod tests {
 
   use super::*;
   use crate::{
-    impls::actor_language::{
-      convert_read_languages,
-      convert_update_languages,
-      default_post_language,
-      get_conn,
-      CommunityLanguage,
-      DbPool,
-      Language,
-      LanguageId,
-      LocalUserLanguage,
-      QueryDsl,
-      RunQueryDsl,
-      SiteLanguage,
-    },
     source::{
       community::{Community, CommunityInsertForm},
       instance::Instance,
       local_site::{LocalSite, LocalSiteInsertForm},
       local_user::{LocalUser, LocalUserInsertForm},
       person::{Person, PersonInsertForm},
-      site::{Site, SiteInsertForm},
+      site::SiteInsertForm,
     },
     traits::Crud,
     utils::build_db_pool_for_tests,

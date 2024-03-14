@@ -14,6 +14,7 @@ use crate::{
       CommunityPersonBanForm,
       CommunityUpdateForm,
     },
+    post::Post,
   },
   traits::{ApubActor, Bannable, Crud, Followable, Joinable},
   utils::{functions::lower, get_conn, DbPool},
@@ -22,10 +23,12 @@ use crate::{
 use diesel::{
   deserialize,
   dsl,
-  dsl::insert_into,
+  dsl::{exists, insert_into},
   pg::Pg,
   result::Error,
+  select,
   sql_types,
+  update,
   ExpressionMethods,
   NullableExpressionMethods,
   QueryDsl,
@@ -136,6 +139,42 @@ impl Community {
     }
     Err(diesel::NotFound)
   }
+
+  pub async fn set_featured_posts(
+    community_id: CommunityId,
+    posts: Vec<Post>,
+    pool: &mut DbPool<'_>,
+  ) -> Result<(), Error> {
+    use crate::schema::post;
+    let conn = &mut get_conn(pool).await?;
+    for p in &posts {
+      debug_assert!(p.community_id == community_id);
+    }
+    conn
+      .build_transaction()
+      .run(|conn| {
+        Box::pin(async move {
+          update(
+            // first remove all existing featured posts
+            post::table,
+          )
+          .filter(post::dsl::community_id.eq(community_id))
+          .set(post::dsl::featured_community.eq(false))
+          .execute(conn)
+          .await?;
+
+          // then mark the given posts as featured
+          let post_ids: Vec<_> = posts.iter().map(|p| p.id).collect();
+          update(post::table)
+            .filter(post::dsl::id.eq_any(post_ids))
+            .set(post::dsl::featured_community.eq(true))
+            .execute(conn)
+            .await?;
+          Ok(())
+        }) as _
+      })
+      .await
+  }
 }
 
 impl CommunityModerator {
@@ -235,7 +274,6 @@ impl CommunityFollower {
     remote_community_id: CommunityId,
   ) -> Result<bool, Error> {
     use crate::schema::community_follower::dsl::{community_follower, community_id};
-    use diesel::dsl::{exists, select};
     let conn = &mut get_conn(pool).await?;
     select(exists(
       community_follower.filter(community_id.eq(remote_community_id)),
@@ -365,6 +403,7 @@ mod tests {
     },
     traits::{Bannable, Crud, Followable, Joinable},
     utils::build_db_pool_for_tests,
+    CommunityVisibility,
   };
   use pretty_assertions::assert_eq;
   use serial_test::serial;
@@ -421,6 +460,7 @@ mod tests {
       hidden: false,
       posting_restricted_to_mods: false,
       instance_id: inserted_instance.id,
+      visibility: CommunityVisibility::Public,
     };
 
     let community_follower_form = CommunityFollowerForm {

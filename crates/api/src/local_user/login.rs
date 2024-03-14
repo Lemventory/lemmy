@@ -1,4 +1,4 @@
-use crate::check_totp_2fa_valid;
+use crate::{check_totp_2fa_valid, local_user::check_email_verified};
 use actix_web::{
   web::{Data, Json},
   HttpRequest,
@@ -43,22 +43,18 @@ pub async fn login(
     Err(LemmyErrorType::IncorrectLogin)?
   }
   check_user_valid(&local_user_view.person)?;
-
-  // Check if the user's email is verified if email verification is turned on
-  // However, skip checking verification if the user is an admin
-  if !local_user_view.local_user.admin
-    && site_view.local_site.require_email_verification
-    && !local_user_view.local_user.email_verified
-  {
-    Err(LemmyErrorType::EmailNotVerified)?
-  }
+  check_email_verified(&local_user_view, &site_view)?;
 
   check_registration_application(&local_user_view, &site_view.local_site, &mut context.pool())
     .await?;
 
   // Check the totp if enabled
   if local_user_view.local_user.totp_2fa_enabled {
-    check_totp_2fa_valid(&local_user_view, &data.totp_2fa_token, &site_view.site.name)?;
+    check_totp_2fa_valid(
+      &local_user_view,
+      &data.totp_2fa_token,
+      &context.settings().hostname,
+    )?;
   }
 
   let jwt = Claims::generate(local_user_view.local_user.id, req, &context).await?;

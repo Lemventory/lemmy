@@ -21,6 +21,7 @@ use lemmy_db_schema::{
   source::{
     captcha_answer::{CaptchaAnswer, CheckCaptchaAnswer},
     local_user::{LocalUser, LocalUserInsertForm},
+    local_user_vote_display_mode::LocalUserVoteDisplayMode,
     person::{Person, PersonInsertForm},
     registration_application::{RegistrationApplication, RegistrationApplicationInsertForm},
   },
@@ -126,6 +127,14 @@ pub async fn register(
   // Also fixes a bug which allows users to log in when registrations are changed to closed.
   let accepted_application = Some(!require_registration_application);
 
+  // Get the user's preferred language using the Accept-Language header
+  let language_tag = req.headers().get("Accept-Language").and_then(|hdr| {
+    accept_language::parse(hdr.to_str().unwrap_or_default())
+      .first()
+      // Remove the optional region code
+      .map(|lang_str| lang_str.split('-').next().unwrap_or_default().to_string())
+  });
+
   // Create the local user
   let local_user_form = LocalUserInsertForm::builder()
     .person_id(inserted_person.id)
@@ -134,6 +143,8 @@ pub async fn register(
     .show_nsfw(Some(data.show_nsfw))
     .accepted_application(accepted_application)
     .default_listing_type(Some(local_site.default_post_listing_type))
+    .post_listing_mode(Some(local_site.default_post_listing_mode))
+    .interface_language(language_tag)
     // If its the initial site setup, they are an admin
     .admin(Some(!local_site.site_setup))
     .build();
@@ -173,6 +184,7 @@ pub async fn register(
     if local_site.require_email_verification {
       let local_user_view = LocalUserView {
         local_user: inserted_local_user,
+        local_user_vote_display_mode: LocalUserVoteDisplayMode::default(),
         person: inserted_person,
         counts: PersonAggregates::default(),
       };

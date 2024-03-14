@@ -16,7 +16,7 @@ doctest = false
 workspace = true
 
 [dependencies]
-lemmy_utils = { workspace = true }
+lemmy_utils = { workspace = true, features = ["full"] }
 lemmy_db_views = { workspace = true }
 lemmy_db_views_actor = { workspace = true }
 lemmy_db_schema = { workspace = true }
@@ -33,4 +33,5 @@ url = { workspace = true }
 once_cell = { workspace = true }
 tracing = { workspace = true }
 tokio = { workspace = true }
-rss = "2.0.6"
+urlencoding = { workspace = true }
+rss = "2.0.7"

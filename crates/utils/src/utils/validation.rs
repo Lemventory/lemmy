@@ -19,6 +19,7 @@ const ALLOWED_POST_URL_SCHEMES: [&str; 3] = ["http", "https", "magnet"];
 const BODY_MAX_LENGTH: usize = 10000;
 const POST_BODY_MAX_LENGTH: usize = 50000;
 const BIO_MAX_LENGTH: usize = 300;
+const ALT_TEXT_MAX_LENGTH: usize = 300;
 const SITE_NAME_MAX_LENGTH: usize = 20;
 const SITE_NAME_MIN_LENGTH: usize = 1;
 const SITE_DESCRIPTION_MAX_LENGTH: usize = 150;
@@ -147,7 +148,7 @@ pub fn is_valid_matrix_id(matrix_id: &str) -> LemmyResult<()> {
 }
 
 pub fn is_valid_post_title(title: &str) -> LemmyResult<()> {
-  let length = title.trim().len();
+  let length = title.trim().chars().count();
   let check = (3..=200).contains(&length) && !has_newline(title);
   if !check {
     Err(LemmyErrorType::InvalidPostTitle.into())
@@ -172,6 +173,18 @@ pub fn is_valid_bio_field(bio: &str) -> LemmyResult<()> {
   max_length_check(bio, BIO_MAX_LENGTH, LemmyErrorType::BioLengthOverflow)
 }
 
+pub fn is_valid_alt_text_field(alt_text: &Option<String>) -> LemmyResult<()> {
+  if let Some(alt_text) = alt_text {
+    max_length_check(
+      alt_text,
+      ALT_TEXT_MAX_LENGTH,
+      LemmyErrorType::AltTextLengthOverflow,
+    )
+  } else {
+    Ok(())
+  }
+}
+
 /// Checks the site name length, the limit as defined in the DB.
 pub fn site_name_length_check(name: &str) -> LemmyResult<()> {
   min_length_check(name, SITE_NAME_MIN_LENGTH, LemmyErrorType::SiteNameRequired)?;
@@ -191,7 +204,7 @@ pub fn site_description_length_check(description: &str) -> LemmyResult<()> {
   )
 }
 
-/// Check minumum and maximum length of input string. If the string is too short or too long, the
+/// Check minimum and maximum length of input string. If the string is too short or too long, the
 /// corresponding error is returned.
 ///
 /// HTML frontends specify maximum input length using `maxlength` attribute.
@@ -380,6 +393,10 @@ mod tests {
   #[test]
   fn test_valid_post_title() {
     assert!(is_valid_post_title("Post Title").is_ok());
+    assert!(is_valid_post_title(
+      "აშშ ითხოვს ირანს დაუყოვნებლივ გაანთავისუფლოს დაკავებული ნავთობის ტანკერი"
+    )
+    .is_ok());
     assert!(is_valid_post_title("   POST TITLE 😃😃😃😃😃").is_ok());
     assert!(is_valid_post_title("\n \n \n \n    		").is_err()); // tabs/spaces/newlines
   }

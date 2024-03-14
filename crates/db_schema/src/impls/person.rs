@@ -1,6 +1,6 @@
 use crate::{
-  newtypes::{CommunityId, DbUrl, PersonId},
-  schema::{instance, local_user, person, person_follower},
+  newtypes::{CommunityId, DbUrl, InstanceId, PersonId},
+  schema::{comment, community, instance, local_user, person, person_follower, post},
   source::person::{
     Person,
     PersonFollower,
@@ -11,7 +11,7 @@ use crate::{
   traits::{ApubActor, Crud, Followable},
   utils::{functions::lower, get_conn, naive_now, DbPool},
 };
-use diesel::{dsl::insert_into, result::Error, ExpressionMethods, JoinOnDsl, QueryDsl};
+use diesel::{dsl::insert_into, result::Error, CombineDsl, ExpressionMethods, JoinOnDsl, QueryDsl};
 use diesel_async::RunQueryDsl;
 
 #[async_trait]
@@ -83,6 +83,39 @@ impl Person {
       ))
       .get_result::<Self>(conn)
       .await
+  }
+
+  /// Lists local community ids for all posts and comments for a given creator.
+  pub async fn list_local_community_ids(
+    pool: &mut DbPool<'_>,
+    for_creator_id: PersonId,
+  ) -> Result<Vec<CommunityId>, Error> {
+    let conn = &mut get_conn(pool).await?;
+    comment::table
+      .inner_join(post::table)
+      .inner_join(community::table.on(post::community_id.eq(community::id)))
+      .filter(community::local.eq(true))
+      .filter(comment::creator_id.eq(for_creator_id))
+      .select(community::id)
+      .union(
+        post::table
+          .inner_join(community::table)
+          .filter(community::local.eq(true))
+          .filter(post::creator_id.eq(for_creator_id))
+          .select(community::id),
+      )
+      .load::<CommunityId>(conn)
+      .await
+  }
+}
+
+impl PersonInsertForm {
+  pub fn test_form(instance_id: InstanceId, name: &str) -> Self {
+    Self::builder()
+      .name(name.to_owned())
+      .public_key("pubkey".to_string())
+      .instance_id(instance_id)
+      .build()
   }
 }
 
