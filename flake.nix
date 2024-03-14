@@ -6,10 +6,10 @@
       url = "github:oxalica/rust-overlay";
       inputs.nixpkgs.follows = "nixpkgs";
     };
-    # lemmy-ui = {
-    #   url = "git+https://github.com/LemInventory/lemmy-ui?submodules=1";
-    #   # Make sure to handle this appropriately as it's not a flake.
-    # };
+    lemmy-ui = {
+      url = "git+https://github.com/LemInventory/lemmy-ui?submodules=1";
+      # Make sure to handle this appropriately as it's not a flake.
+    };
   };
   outputs = { self, nixpkgs, rust-overlay, flake-utils, ... }:  
     flake-utils.lib.eachDefaultSystem (system:
@@ -79,27 +79,11 @@
           PROTOC_INCLUDE = "${pkgs.protobuf}/include";
           PKG_CONFIG_PATH = "${openssl_wr}/lib/pkgconfig:${pkgs.pkg-config}/lib/pkgconfig";
 
-          # HOST = "x86_64-unknown-linux-gnu";
-          # TARGET = "x86_64-unknown-linux-gnu";
-
-          # shellHook = ''
-          #   export OPENSSL_LIB_DIR="${lib.getLib openssl.dev}"
-          #   export OPENSSL_INCLUDE_DIR="${openssl.dev}/include"
-          #   export OPENSSL_DIR="${openssl.dev}/out"
-          #   export PROTOC="${pkgs.protobuf}/bin/protoc"
-          #   export PROTOC_INCLUDE="${pkgs.protobuf}/include"
-
-          #   export RUST_BACKTRACE=1
-
-          #   echo $OPENSSL_LIB_DIR 
-          #   echo $OPENSSL_INCLUDE_DIR 
-          #   echo $OPENSSL_DIR 
-          #   echo $PROTOC 
-          #   echo $PROTOC_INCLUDE 
-          #   echo $PKG_CONFIG_PATH
-          #   echo $HOST
-          #   echo $TARGET
-          # '';
+          shellHook = ''
+            nix eval --raw .
+            echo 
+            echo "evaluated successfully"
+          '';
         };
       }
     );
