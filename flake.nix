@@ -22,35 +22,21 @@
         lib = pkgs.lib;
         cargoToml = builtins.fromTOML (builtins.readFile ./Cargo.toml);
         version = cargoToml.workspace.package.version;  
-
-        versionPatch = pkgs.writeText "version-patch.patch" ''
-          diff --git a/crates/utils/src/version.rs b/crates/utils/src/version.rs
-          new file mode 100644
-          index 0000000..e69de29
-          --- /dev/null
-          +++ b/crates/utils/src/version.rs
-          @@ -0,0 +1 @@
-          +pub const VERSION: &str = "${version}";
-        '';
+        # versionPatch = pkgs.writeText "version-patch.patch" ''
+        #   diff --git a/crates/utils/src/version.rs b/crates/utils/src/version.rs
+        #   new file mode 100644
+        #   index 0000000..e69de29
+        #   --- /dev/null
+        #   +++ b/crates/utils/src/version.rs
+        #   @@ -0,0 +1 @@
+        #   +pub const VERSION: &str = "${version}";
+        # '';
 
         # A *very* necessary OpenSSL wrapper
         openssl_wr = pkgs.symlinkJoin {
           name = "openssl-dev-out";
           paths = with pkgs; [ openssl.dev openssl.out ];
         };
-                # attempting to use lemmy-ui 
-        # combinedSrc = pkgs.symlinkJoin {
-        #   name = "lemmy-ui";
-        #   paths = [
-        #     ./.
-        #     (pkgs.fetchgit {
-        #       url = "https://github.com/LemmyNet/lemmy-ui";
-        #       rev = "9a5f9dd18a0e8e28e222f95e1c8131dbd64af131";
-        #       sha256 = "4DsLg0je6irgf2X6hyQwotZB4L17yuOTe7l4WDT1ieg=";
-        #       fetchSubmodules = true;
-        #     })
-        #   ];
-        # };
       in
       with pkgs;
       {
