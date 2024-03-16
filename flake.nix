@@ -6,7 +6,13 @@
       url = "github:oxalica/rust-overlay";
       inputs.nixpkgs.follows = "nixpkgs";
     };
-  };
+    # lemmy-ui-src = {
+    #   url = "github:LemmyNet/lemmy-ui/a860bdd70098eb4a41e091403e9cbc363780248e";
+    #   flake = false;
+    # };
+
+    
+  }; 
   outputs = { self, nixpkgs, rust-overlay, flake-utils, ... }:  
     flake-utils.lib.eachDefaultSystem (system:
       let
@@ -19,6 +25,50 @@
         pkgs = import nixpkgs {
           inherit system overlays;
         };
+        lemmy-ui = pkgs.callPackage ({
+          lib, mkYarnPackage, fetchFromGitHub, fetchYarnDeps, nodejs, libsass, python3, pkg-config, vips, nodePackages
+        }:
+        let
+          version = "a860bdd70098eb4a41e091403e9cbc363780248e"; # This should match lemmy-ui-src version
+          src = fetchFromGitHub {
+            owner = "LemmyNet";
+            repo = "lemmy-ui";
+            rev = version;
+            sha256 = lib.fakeSha256; # You need to replace this with the actual hash.
+            fetchSubmodules = true;
+          };
+
+          pkgConfig = {
+            "node-sass" = {
+              nativeBuildInputs = [ pkg-config ];
+              buildInputs = [ libsass python3 ];
+              postInstall = ''
+                LIBSASS_EXT=auto yarn --offline run build
+                rm build/config.gypi
+              '';
+            };
+            sharp = {
+              nativeBuildInputs = [ pkg-config nodePackages.node-gyp nodePackages.semver ];
+              buildInputs = [ vips ];
+              postInstall = ''
+                yarn --offline run install
+              '';
+            };
+          };
+
+          yarnLock = src + "/yarn.lock";
+        in mkYarnPackage {
+          inherit src pkgConfig version;
+          name = "lemmy-ui";
+          extraBuildInputs = [ libsass ];
+          offlineCache = fetchYarnDeps {
+            inherit yarnLock;
+            hash = "sha256-nms06uXCxbGkdfACuxC6CSRiICxAjofZ7xUjvRYjhRc="; 
+          };
+
+          # Additional build phases as needed from the original package
+        }) {};
+
         lib = pkgs.lib;
         cargoToml = builtins.fromTOML (builtins.readFile ./Cargo.toml);
         version = cargoToml.workspace.package.version;  
@@ -40,6 +90,8 @@
       in
       with pkgs;
       {
+          packages.lemmy-ui = lemmy-ui;
+
           packages.default = pkgs.rustPlatform.buildRustPackage {
             inherit (cargoToml.package) name;
             pname = "lemmy_server";
@@ -67,11 +119,11 @@
         # Devshell (to be broken out to separate shell.nix later)      
         devShells.default = mkShell {
           name = "lemmy-shell";
-          buildInputs = [ openssl openssl.dev postgresql libiconv protobuf pkg-config ];
+          buildInputs = [ openssl openssl.dev postgresql libiconv protobuf pkg-config nodejs nodePackages.pnpm ];
 
           nativeBuildInputs = [ rustToolchain pkg-config rustfmt protobuf ];
 
-          packages = [ rustToolchain cargo-deny cargo-edit cargo-watch rust-analyzer ];
+          packages = [ rustToolchain cargo-deny cargo-edit cargo-watch rust-analyzer lemmy-ui ];
 
           # Dev Environment variables
           RUST_SRC_PATH = "${pkgs.rust.packages.stable.rustPlatform.rustLibSrc}";
@@ -87,13 +139,19 @@
           # Environment variable to connect to the database
           LEMMY_DATABASE_URL = "postgres://lemmy:password@localhost:5432/lemmy";
 
-          shellHook = ''
-            echo "LEMMY_DATABASE_URL is set to $LEMMY_DATABASE_URL";
-            # Any other setup steps can be added here
-            nix eval --raw .
-            echo 
-            echo "evaluated successfully"
-          '';
+          # shellHook = ''
+
+          #   echo "Fetching submodules..."
+          #   # git submodule update --init --recursive
+          #   # git submodule init && git submodule update
+
+          #   echo "LEMMY_DATABASE_URL is set to $LEMMY_DATABASE_URL";
+          #   # Any other setup steps can be added here
+
+          #   nix eval --raw '.?submodules=1'
+          #   echo 
+          #   echo "evaluated successfully"
+          # '';
         };
       }
     );
