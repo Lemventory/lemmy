@@ -29,14 +29,17 @@ import {
   unfollows,
   getPost,
   waitUntil,
-  randomString,
   createPostWithThumbnail,
+  sampleImage,
+  sampleSite,
 } from "./shared";
 const downloadFileSync = require("download-file-sync");
 
 beforeAll(setupLogins);
 
-afterAll(unfollows);
+afterAll(async () => {
+  await Promise.all([unfollows(), deleteAllImages(alpha)]);
+});
 
 test("Upload image and delete it", async () => {
   // Before running this test, you need to delete all previous images in the DB
@@ -157,9 +160,9 @@ test("Purge post, linked image removed", async () => {
     upload.url,
   );
   expect(post.post_view.post.url).toBe(upload.url);
+  expect(post.post_view.image_details).toBeDefined();
 
   // purge post
-
   const purgeForm: PurgePost = {
     post_id: post.post_view.post.id,
   };
@@ -171,48 +174,97 @@ test("Purge post, linked image removed", async () => {
   expect(content2).toBe("");
 });
 
-test("Images in remote post are proxied if setting enabled", async () => {
-  let user = await registerUser(beta, betaUrl);
+test("Images in remote image post are proxied if setting enabled", async () => {
   let community = await createCommunity(gamma);
-
-  const upload_form: UploadImage = {
-    image: Buffer.from("test"),
-  };
-  const upload = await user.uploadImage(upload_form);
-  let post = await createPost(
+  let postRes = await createPost(
     gamma,
     community.community_view.community.id,
-    upload.url,
-    "![](http://example.com/image2.png)",
+    sampleImage,
+    `![](${sampleImage})`,
   );
-  expect(post.post_view.post).toBeDefined();
+  const post = postRes.post_view.post;
+  expect(post).toBeDefined();
+
+  // Make sure it fetched the image details
+  expect(postRes.post_view.image_details).toBeDefined();
 
   // remote image gets proxied after upload
   expect(
-    post.post_view.post.url?.startsWith(
+    post.thumbnail_url?.startsWith(
       "http://lemmy-gamma:8561/api/v3/image_proxy?url",
     ),
   ).toBeTruthy();
   expect(
-    post.post_view.post.body?.startsWith(
-      "![](http://lemmy-gamma:8561/api/v3/image_proxy?url",
-    ),
+    post.body?.startsWith("![](http://lemmy-gamma:8561/api/v3/image_proxy?url"),
   ).toBeTruthy();
 
-  let epsilonPost = await resolvePost(epsilon, post.post_view.post);
-  expect(epsilonPost.post).toBeDefined();
+  // Make sure that it ends with jpg, to be sure its an image
+  expect(post.thumbnail_url?.endsWith(".jpg")).toBeTruthy();
 
-  // remote image gets proxied after federation
+  let epsilonPostRes = await resolvePost(epsilon, postRes.post_view.post);
+  expect(epsilonPostRes.post).toBeDefined();
+
+  // Fetch the post again, the metadata should be backgrounded now
+  // Wait for the metadata to get fetched, since this is backgrounded now
+  let epsilonPostRes2 = await waitUntil(
+    () => getPost(epsilon, epsilonPostRes.post!.post.id),
+    p => p.post_view.post.thumbnail_url != undefined,
+  );
+  const epsilonPost = epsilonPostRes2.post_view.post;
+
   expect(
-    epsilonPost.post!.post.url?.startsWith(
+    epsilonPost.thumbnail_url?.startsWith(
       "http://lemmy-epsilon:8581/api/v3/image_proxy?url",
     ),
   ).toBeTruthy();
   expect(
-    epsilonPost.post!.post.body?.startsWith(
+    epsilonPost.body?.startsWith(
       "![](http://lemmy-epsilon:8581/api/v3/image_proxy?url",
     ),
   ).toBeTruthy();
+
+  // Make sure that it ends with jpg, to be sure its an image
+  expect(epsilonPost.thumbnail_url?.endsWith(".jpg")).toBeTruthy();
+});
+
+test("Thumbnail of remote image link is proxied if setting enabled", async () => {
+  let community = await createCommunity(gamma);
+  let postRes = await createPost(
+    gamma,
+    community.community_view.community.id,
+    // The sample site metadata thumbnail ends in png
+    sampleSite,
+  );
+  const post = postRes.post_view.post;
+  expect(post).toBeDefined();
+
+  // remote image gets proxied after upload
+  expect(
+    post.thumbnail_url?.startsWith(
+      "http://lemmy-gamma:8561/api/v3/image_proxy?url",
+    ),
+  ).toBeTruthy();
+
+  // Make sure that it ends with png, to be sure its an image
+  expect(post.thumbnail_url?.endsWith(".png")).toBeTruthy();
+
+  let epsilonPostRes = await resolvePost(epsilon, postRes.post_view.post);
+  expect(epsilonPostRes.post).toBeDefined();
+
+  let epsilonPostRes2 = await waitUntil(
+    () => getPost(epsilon, epsilonPostRes.post!.post.id),
+    p => p.post_view.post.thumbnail_url != undefined,
+  );
+  const epsilonPost = epsilonPostRes2.post_view.post;
+
+  expect(
+    epsilonPost.thumbnail_url?.startsWith(
+      "http://lemmy-epsilon:8581/api/v3/image_proxy?url",
+    ),
+  ).toBeTruthy();
+
+  // Make sure that it ends with png, to be sure its an image
+  expect(epsilonPost.thumbnail_url?.endsWith(".png")).toBeTruthy();
 });
 
 test("No image proxying if setting is disabled", async () => {
@@ -232,7 +284,7 @@ test("No image proxying if setting is disabled", async () => {
     alpha,
     community.community_view.community.id,
     upload.url,
-    "![](http://example.com/image2.png)",
+    `![](${sampleImage})`,
   );
   expect(post.post_view.post).toBeDefined();
 
@@ -240,7 +292,7 @@ test("No image proxying if setting is disabled", async () => {
   expect(
     post.post_view.post.url?.startsWith("http://127.0.0.1:8551/pictrs/image/"),
   ).toBeTruthy();
-  expect(post.post_view.post.body).toBe("![](http://example.com/image2.png)");
+  expect(post.post_view.post.body).toBe(`![](${sampleImage})`);
 
   let betaPost = await waitForPost(
     beta,
@@ -253,8 +305,7 @@ test("No image proxying if setting is disabled", async () => {
   expect(
     betaPost.post.url?.startsWith("http://127.0.0.1:8551/pictrs/image/"),
   ).toBeTruthy();
-  expect(betaPost.post.body).toBe("![](http://example.com/image2.png)");
-
+  expect(betaPost.post.body).toBe(`![](${sampleImage})`);
   // Make sure the alt text got federated
   expect(post.post_view.post.alt_text).toBe(betaPost.post.alt_text);
 });

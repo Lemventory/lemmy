@@ -99,8 +99,6 @@ pub enum LemmyErrorType {
   PersonIsBannedFromSite(String),
   InvalidVoteValue,
   PageDoesNotSpecifyCreator,
-  PageDoesNotSpecifyGroup,
-  NoCommunityFoundInCc,
   NoEmailSetup,
   LocalSiteNotSetup,
   EmailSmtpServerNeedsAPort,
@@ -163,19 +161,21 @@ pub enum LemmyErrorType {
   PermissiveRegex,
   InvalidRegex,
   CaptchaIncorrect,
-  PasswordResetLimitReached,
   CouldntCreateAudioCaptcha,
   InvalidUrlScheme,
   CouldntSendWebmention,
   ContradictingFilters,
   InstanceBlockAlreadyExists,
-  /// Thrown when an API call is submitted with more than 1000 array elements, see [[MAX_API_PARAM_ELEMENTS]]
+  /// Thrown when an API call is submitted with more than 1000 array elements, see
+  /// [[MAX_API_PARAM_ELEMENTS]]
   TooManyItems,
   CommunityHasNoFollowers,
   BanExpirationInPast,
   InvalidUnixTime,
   InvalidBotAction,
   CantBlockLocalInstance,
+  UrlWithoutDomain,
+  InboxTimeout,
   Unknown(String),
 }
 
